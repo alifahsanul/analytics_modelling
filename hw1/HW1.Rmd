@@ -1,0 +1,147 @@
+---
+title: 'Homework 1'
+author: 'Muh Alif Ahsanul Islam'
+date: '5/18/2019'
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question  2.1
+Describe a situation or problem from your job, everyday life, current events, etc., for which a
+classification model would be appropriate. List some (up to 5) predictors that you might use.
+
+**Answer:**
+
+Classifying manufacturing product into acceptable and not-acceptable.  
+After a product is produced it is necessary to do quality control process. Products that has defects, or do not meet requirements must be inspected. To automate the process machine learning models can be used.  
+Predictors:  
+1. Geometrical shape  
+2. Color  
+3. Mass  
+
+<!-- 1. Classifying manufacturing product -->
+<!-- After a product is produced it is necessary to do quality control process. Products that has defects, or do not meet requirements must be inspected. To automate the process machine learning models can be used. -->
+<!-- The predictors can be geometrical shape or color of the product. -->
+
+<!-- 2. Traffic sign classfication for autonomous driving -->
+<!-- To make vehicle fully autonomous, the vehicle needs to recognize signs such as speed limit, no passing, crossing signs, etc.  -->
+<!-- Input for this classification problem is labelled image. Image consist of  -->
+<!-- To solve this problem deep neural network is usually used. -->
+
+<!-- 3. Cancer detection -->
+<!-- The predictor can be size, shape, or color of cells. -->
+
+<!-- 4.  -->
+
+```{r}
+
+```
+
+## Question 2.2
+
+The files credit_card_data.txt (without headers) and credit_card_data-headers.txt (with headers) contain a dataset with 654 data points, 6 continuous and 4 binary predictor variables. It has anonymized credit card applications with a binary response variable (last column) indicating if the application was positive or negative. The dataset is the “Credit Approval Data Set” from the UCI Machine Learning Repository (<https://archive.ics.uci.edu/ml/datasets/Credit+Approval>) without the categorical variables and without data points that have missing values.
+```{r include=FALSE}
+library(kernlab)
+library(caret)
+library(ggplot2)
+source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
+```
+
+### Question 2.2.1
+Using the support vector machine function ksvm contained in the R package kernlab, find a good classifier for this data. Show the equation of your classifier, and how well it classifies the data points in the full data set.
+
+```{r}
+setwd('/home/alifahsanul/Documents/analytics_modelling')
+data = read.table('./hw1/week_1_data-summer/data 2.2/credit_card_data-headers.txt', 
+                   header=TRUE)
+y_col_name = 'R1'
+cols = c(y_col_name)
+data[cols] = lapply(data[cols], factor)
+y_col_ind = grep(y_col_name, colnames(data))
+X = data[,-y_col_ind]
+y = data[,y_col_ind]
+X = as.matrix(X)
+y = (y)
+c_params = c(0.001, 0.01, 0.1, 1, 10, 100, 1000)
+c_params = c(0.001, 0.01, 0.1, 1, 10)
+model_list = c()
+conf_matrix_list = c()
+modelling_result = NULL
+for (c in c_params){
+  cat(sprintf('\n---------------------------\n'))
+  cat(sprintf('C: %.6f\n', c))
+  model = ksvm(X, y, type='C-svc', kernel='vanilladot', C=c, scaled=TRUE)
+  y_pred = predict(model, X)
+  conf_matr = confusionMatrix(y_pred, y)
+  accuracy = conf_matr[['overall']][['Accuracy']] * 100
+  f1_score = conf_matr[['byClass']][['F1']] * 100
+  cat(sprintf('Accuracy: %.2f %%\tF1 Score: %.2f %%\n', accuracy, f1_score))
+  model_list = c(model_list, model)
+  conf_matrix_list = c(conf_matrix_list, conf_matr)
+  modelling_result = rbind(modelling_result, data.frame(c, accuracy, f1_score))
+}
+```
+
+
+```{r fig.width=4, fig.height=2}
+ggplot(data=modelling_result, aes(x=c, y=f1_score)) +
+  scale_x_continuous(trans='log10') +
+  geom_line(linetype = "dashed") + geom_point() +
+  labs(x='C', y='F1 Score (%)')
+```
+
+```{r fig.width=4, fig.height=2}
+ggplot(data=modelling_result, aes(x=c, y=accuracy)) +
+  scale_x_continuous(trans='log10') +
+  geom_line(linetype = "dashed") + geom_point() +
+  labs(x='C', y='Accuracy (%)')
+```
+```{r}
+best_model_ind = which.max(modelling_result[, c('f1_score')])
+best_model = model_list[[best_model_ind]]
+best_c_params = c_params[best_model_ind]
+best_f1_score = modelling_result[best_model_ind, c('f1_score')]
+cat(sprintf('Best model with higest F1 Score of %.2f%% is model with C = %.6f\n', 
+            best_f1_score, best_c_params))
+a = colSums(best_model@xmatrix[[1]] * best_model@coef[[1]])
+a0 = -best_model@b
+model_col_name = names(a)
+equation = ''
+for (i in seq_along(model_col_name)){
+  coef = a[i]
+  name = model_col_name[i]
+  equation = paste(equation, sprintf('%.2e * %s + ', coef, name), sep='')
+}
+equation = paste0(paste(equation, sprintf('%.2e = 0',a0)))
+equation = break_string(equation, '+', 70)
+cat(sprintf('Best model equation is:\n%s\n', equation))
+```
+### Question 2.2.2
+You are welcome, but not required, to try other (nonlinear) kernels as well; we’re not covering
+them in this course, but they can sometimes be useful and might provide better predictions
+than vanilladot.
+
+```{r}
+c_params = c(0.001, 0.01, 0.1, 1, 10)
+model_list = c()
+conf_matrix_list = c()
+modelling_result = NULL
+for (c in c_params){
+  cat(sprintf('\n---------------------------\n'))
+  cat(sprintf('C: %.6f\n', c))
+  model = ksvm(X, y, type='C-svc', kernel='vanilladot', C=c, scaled=TRUE)
+  y_pred = predict(model, X)
+  conf_matr = confusionMatrix(y_pred, y)
+  accuracy = conf_matr[['overall']][['Accuracy']] * 100
+  f1_score = conf_matr[['byClass']][['F1']] * 100
+  cat(sprintf('Accuracy: %.2f %%\tF1 Score: %.2f %%\n', accuracy, f1_score))
+  model_list = c(model_list, model)
+  conf_matrix_list = c(conf_matrix_list, conf_matr)
+  modelling_result = rbind(modelling_result, data.frame(c, accuracy, f1_score))
+}
+```
