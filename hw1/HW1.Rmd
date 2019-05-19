@@ -1,5 +1,5 @@
 ---
-title: 'Homework 1'
+title: 'GTx: ISYE6501x - Homework 1'
 author: 'Muh Alif Ahsanul Islam'
 date: '5/18/2019'
 output:
@@ -17,7 +17,7 @@ classification model would be appropriate. List some (up to 5) predictors that y
 
 **Answer:**
 
-Classifying manufacturing product into acceptable and not-acceptable.  
+Classifying manufacturing product into acceptable and not-acceptable product.  
 After a product is produced it is necessary to do quality control process. Products that has defects, or do not meet requirements must be inspected. To automate the process machine learning models can be used.  
 Predictors:  
 1. Geometrical shape  
@@ -44,22 +44,21 @@ Predictors:
 
 ## Question 2.2
 
-The files credit_card_data.txt (without headers) and credit_card_data-headers.txt (with headers) contain a dataset with 654 data points, 6 continuous and 4 binary predictor variables. It has anonymized credit card applications with a binary response variable (last column) indicating if the application was positive or negative. The dataset is the “Credit Approval Data Set” from the UCI Machine Learning Repository (<https://archive.ics.uci.edu/ml/datasets/Credit+Approval>) without the categorical variables and without data points that have missing values.
+The files credit_card_data.txt (without headers) and credit_card_data-headers.txt (with headers) contain a dataset with 654 data points, 6 continuous and 4 binary predictor variables. It has anonymized credit card applications with a binary response variable (last column) indicating if the application was positive or negative.
 ```{r include=FALSE}
 library(kernlab)
 library(caret)
 library(ggplot2)
 library(tidyr)
 source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
+data = read.table('/home/alifahsanul/Documents/analytics_modelling/hw1/week_1_data-summer/data 2.2/credit_card_data-headers.txt', 
+                   header=TRUE)
 ```
 
 ### Question 2.2.1
 Using the support vector machine function ksvm contained in the R package kernlab, find a good classifier for this data. Show the equation of your classifier, and how well it classifies the data points in the full data set.
 
 ```{r}
-setwd('/home/alifahsanul/Documents/analytics_modelling')
-data = read.table('./hw1/week_1_data-summer/data 2.2/credit_card_data-headers.txt', 
-                   header=TRUE)
 y_col_name = 'R1'
 cols = c(y_col_name)
 data[cols] = lapply(data[cols], factor)
@@ -69,7 +68,6 @@ y = data[,y_col_ind]
 X = as.matrix(X)
 y = (y)
 c_params = c(0.001, 0.01, 0.1, 1, 10, 100, 1000)
-c_params = c(0.001, 0.01, 0.1)
 model_list = c()
 conf_matrix_list = c()
 modelling_result = NULL
@@ -90,27 +88,28 @@ for (c in c_params){
 modelling_result$kernel = 'linear'
 ```
 
+F1 Score is more appropriate metric for classification problem instead of accuracy because it considers both the precision and the recall of the test to compute the score. More on F1 score can be found here (<https://en.wikipedia.org/wiki/F1_score>).  
 
-```{r fig.width=4, fig.height=2}
+```{r fig.width=5, fig.height=1.8}
 ggplot(data=modelling_result, aes(x=c, y=f1_score)) +
   scale_x_continuous(trans='log10') +
   geom_line(linetype = "dashed") + geom_point() +
   labs(x='C', y='F1 Score (%)')
 ```
 
-```{r fig.width=4, fig.height=2}
+```{r fig.width=5, fig.height=1.8}
 ggplot(data=modelling_result, aes(x=c, y=accuracy)) +
   scale_x_continuous(trans='log10') +
   geom_line(linetype = "dashed") + geom_point() +
   labs(x='C', y='Accuracy (%)')
 ```
+
+
 ```{r}
 best_model_ind = which.max(modelling_result[, c('f1_score')])
 best_model = model_list[[best_model_ind]]
 best_c_params = c_params[best_model_ind]
 best_f1_score = modelling_result[best_model_ind, c('f1_score')]
-cat(sprintf('Best model with higest F1 Score of %.2f%% is model with C = %.6f\n', 
-            best_f1_score, best_c_params))
 a = colSums(best_model@xmatrix[[1]] * best_model@coef[[1]])
 a0 = -best_model@b
 model_col_name = names(a)
@@ -121,9 +120,18 @@ for (i in seq_along(model_col_name)){
   equation = paste(equation, sprintf('%.2e * %s + ', coef, name), sep='')
 }
 equation = paste0(paste(equation, sprintf('%.2e = 0',a0)))
-equation = break_string(equation, '+', 70)
-cat(sprintf('Best model equation is:\n%s\n', equation))
+equation = f_break_string(equation, '+', 70)
 ```
+
+#### ANSWER OF QUESTION 2.2.1
+```{r echo=FALSE}
+ans_2_2_1 = sprintf('%s %s',
+                    sprintf('Best model with higest F1 Score of %.2f%% is model with C = %.6f\n', 
+                            best_f1_score, best_c_params),
+                    sprintf('Best model equation is:\n%s\n', equation))
+cat(ans_2_2_1)
+```
+\newpage
 ### Question 2.2.2
 You are welcome, but not required, to try other (nonlinear) kernels as well; we’re not covering
 them in this course, but they can sometimes be useful and might provide better predictions
@@ -135,14 +143,14 @@ than vanilladot.
 #### Polynomial Kernel SVM
 
 ```{r}
-c_params = c(0.001, 0.01, 0.1, 1)
+c_params = c(0.001, 0.01, 0.1, 1, 10, 100, 1000)
 degree_params = c(2, 3, 4)
 poly_models = c()
 conf_matrix = c()
 poly_model_result = NULL
 for (degree in degree_params){
   for (c in c_params){
-    my_svm_model = my_ksvm(X, y, 'polydot', c_params, arg_list=list('degree'=degree),
+    my_svm_model = f_my_ksvm(X, y, 'polydot', c_params, arg_list=list('degree'=degree),
                            verbose=FALSE)
     poly_models = c(poly_models, my_svm_model$model)
     conf_matrix = c(conf_matrix, my_svm_model$conf_matrix)
@@ -165,22 +173,21 @@ ggplot(poly_model_result, aes(x=c,
   geom_tile(color='white') +
   scale_fill_gradient(name = 'F1 Score (%)')
 ```
-```{r}
-source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
-best_poly_model = best_model(poly_model_result, 'f1_score')
-print('Best Polynomial Kernel Model:')
+```{r echo=FALSE}
+best_poly_model = f_best_model(poly_model_result, 'f1_score')
+cat('Best Polynomial Kernel Model:')
 print(best_poly_model, row.names = FALSE)
 ```
 
 #### RBF Kernel SVM
 ```{r}
-sigma_params = c(0.1, 0.5, 1)
+sigma_params = c(0.1, 0.3, 0.5, 0.7, 1)
 rbf_models = c()
 conf_matrix = c()
 rbf_model_result = NULL
 for (sigma in sigma_params){
   for (c in c_params){
-    my_svm_model = my_ksvm(X, y, 'rbfdot', c_params, arg_list=list('sigma'=sigma),
+    my_svm_model = f_my_ksvm(X, y, 'rbfdot', c_params, arg_list=list('sigma'=sigma),
                            verbose=FALSE)
     rbf_models = c(rbf_models, my_svm_model$model)
     conf_matrix = c(conf_matrix, my_svm_model$conf_matrix)
@@ -204,19 +211,19 @@ ggplot(rbf_model_result, aes(x=c,
   scale_fill_gradient(name = 'F1 Score (%)')
 ```
 
-```{r}
-source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
-best_rbf_model = best_model(rbf_model_result, 'f1_score')
-print('Best RBF Kernel Model:')
+```{r echo=FALSE}
+best_rbf_model = f_best_model(rbf_model_result, 'f1_score')
+cat('Best RBF Kernel Model:')
 print(best_rbf_model, row.names = FALSE)
 ```
 
-The best model is
-```{r}
+#### ANSWER OF QUESTION 2.2.2
+
+```{r echo=FALSE}
 library(gtools)
 all_model_result = smartbind(modelling_result, poly_model_result, rbf_model_result)
-best_svm_model = best_model(all_model_result, 'f1_score')
-print('Best SVM model among 3 kernels (linear, polynomial, RBF):')
+best_svm_model = f_best_model(all_model_result, 'f1_score')
+cat('Best SVM model among 3 kernels (linear, polynomial, RBF):')
 print(best_svm_model, row.names = FALSE)
 ```
 Because the best model is selected based on test data score which has same data with training data, it will overfit the data.
@@ -229,12 +236,206 @@ Because the best model is selected based on test data score which has same data 
 Using the k-nearest-neighbors classification function kknn contained in the R kknn package,
 suggest a good value of k, and show how well it classifies that data points in the full data set
 
+
 ```{r}
 library(kknn)
-source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
-data_splitter = train_test_split(X, y, 0.7, 0.3)
-# kknn(formula = formula(train), train, test)
+train_kknn = train.kknn(formula=R1~., data=data, kmax=15, scale=TRUE,
+                        kernel = c('triangular', 'rectangular', 'gaussian'),
+                        distance=2)
+plot(train_kknn, main='KNN Hyperparameter Selection')
+
 ```
+```{r}
+best_kernel = train_kknn[["best.parameters"]][["kernel"]]
+best_k = train_kknn[["best.parameters"]][["k"]]
+best_missclasify = train_kknn[["MISCLASS"]][best_k, best_kernel]
+best_accuracy = 100 * (1 - best_missclasify)
+```
+
+
+#### ANSWER OF QUESTION 2.2.3
+train.knn is leave-one-out crossvalidation and used to train the model. This will exclude the current validation point from training points and it will not count itself as neighbor.
+```{r echo=FALSE}
+knn_summary = 
+  sprintf('From figure above we can see %s kernel with k=%i %s %s',
+        best_kernel, best_k,
+        sprintf('produce lowest misclassification of %.4f', 
+                best_missclasify),
+        sprintf(' or accuracy of %.2f%%', best_accuracy)
+  )
+cat(f_break_string(knn_summary, ' ', 70))
+```
+\newpage
+## Question 3.1
+Using the same data set (credit_card_data.txt or credit_card_data-headers.txt) as in Question 2.2, use the ksvm or kknn function to find a good classifier:  
+(a) using cross-validation (do this for the k-nearest-neighbors model; SVM is optional); and  
+(b) splitting the data into training, validation, and test data sets (pick either KNN or SVM; the other is optional).
+
+### Question 3.1.a
+#### KNN model cross validation
+
+```{r fig.width=8, fig.height=5}
+kknn_data = data.frame(data)
+levels(kknn_data$R1) <- c("zero", "one")
+k_cv = 10
+trctrl = trainControl(method='cv', number=k_cv, 
+                      summaryFunction = twoClassSummary, classProbs = TRUE)
+tuneGrid = expand.grid(kmax=1:15, distance=1:2, 
+                       kernel=c('gaussian', 'triangular', 'rectangular'))
+kknn_fit <- train(R1~., data=kknn_data, method='kknn', trControl=trctrl,
+                  preProcess = c('center', 'scale'), tuneGrid=tuneGrid, metric='ROC')
+plot(kknn_fit)
+```
+
+ROC is another good metric to evaluate prediction model, it shows trade off between true positive rate and false positive rate. (<https://en.wikipedia.org/wiki/Receiver_operating_characteristic>)
+
+```{r}
+best_model = kknn_fit[["bestTune"]]
+y_hat = predict(kknn_fit, kknn_data)
+library(MLmetrics)
+levels(kknn_data$R1) <- c("0", "1")
+levels(y_hat) <- c("0", "1")
+accuracy = 100 * sum(y_hat == kknn_data$R1) / nrow(data)
+f1_score = F1_Score(data$R1, y_hat)
+```
+
+#### ANSWER OF QUESTION 3.1.a
+
+```{r echo=FALSE}
+cat(sprintf('Best model among of KNN model using %i-fold cross validation approach:', k_cv))
+print(best_model, row.names = FALSE)
+```
+
+### Question 3.1.b
+#### Training, validation, test split with SVM Model
+
+```{r}
+data_splitter = f_train_validation_test_split(data, 0.7, 0.2, 0.1)
+data_train = data_splitter$train
+data_validation = data_splitter$validation
+data_test = data_splitter$test
+X_train = as.matrix(data_train[, -y_col_ind])
+y_train = data_train[, y_col_ind]
+X_validation = as.matrix(data_validation[, -y_col_ind])
+y_validation = data_validation[, y_col_ind]
+X_test = as.matrix(data_test[, -y_col_ind])
+y_test = data_test[, y_col_ind]
+
+```
+
+#### RBF Kernel SVM
+```{r}
+c_params = c(0.01, 0.1, 1, 10, 100, 1000)
+sigma_params = c(0.1, 0.3, 0.5, 0.7, 1, 2, 10)
+rbf_models = c()
+conf_matrix = c()
+rbf_model_result = NULL
+verbose = FALSE
+for (c in c_params){
+  for (sigma in sigma_params){
+    model = ksvm(X_train, y_train, type='C-svc', kernel='rbfdot', C=c, 
+                 sigma=sigma, scaled=TRUE)
+    y_validation_pred = predict(model, X_validation)
+    conf_matrix = confusionMatrix(y_validation_pred, y_validation)
+    accuracy = conf_matrix[['overall']][['Accuracy']] * 100
+    f1_score = conf_matrix[['byClass']][['F1']] * 100
+    rbf_models = c(rbf_models, model)
+    conf_matrix_list = c(conf_matrix_list, conf_matrix)
+    rbf_model_result = rbind(rbf_model_result, data.frame(c, sigma, accuracy, f1_score))
+    if (verbose){
+      cat(sprintf('\n---------------------------\n'))
+      cat(sprintf('C: %.6f\n', c))
+      print(conf_matrix[["table"]])
+      cat(sprintf('Accuracy: %.2f %%\tF1 Score: %.2f %%\n', accuracy, f1_score))
+    }
+  }
+}
+rbf_model_result$kernel = 'rbf'
+best_rbf_model = f_best_model(rbf_model_result, 'f1_score')
+best_model = rbf_models[[as.integer(row.names(best_rbf_model))]]
+y_test_hat = predict(best_model, X_test)
+test_accuracy = 100 * sum(y_test_hat == y_test) / length(y_test)
+library(MLmetrics)
+test_f1_score = 100 * F1_Score(y_test, y_test_hat)
+```
+
+```{r fig.width=6, fig.height=3}
+cols = c('c', 'sigma')
+rbf_model_result[cols] = lapply(rbf_model_result[cols], factor)
+ggplot(rbf_model_result, aes(x=c,
+                              y=sigma,
+                              fill = f1_score)) +
+  geom_tile(color='white') +
+  scale_fill_gradient(name = 'F1 Score (%)') +
+  ggtitle('F1 Score with Validation Data') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r echo=FALSE}
+cat('SVM RBF Kernel Model with Highest F1 Score in Validation Data:')
+print(best_rbf_model, row.names = FALSE)
+```
+
+#### ANSWER OF QUESTION 3.1.b
+
+The model can be considered good because the difference in accuracy and F1 score for validation and testing data is not big. It means the model can capture the real pattern in data and not noise and randomness in training or validation data.
+
+```{r echo=FALSE}
+cat('Best Parameters for SVM RBF:')
+cat(sprintf('C: %.4f\tSigma: %.2f', 
+            best_rbf_model[['c']], best_rbf_model[['sigma']]))
+cat('For testing data:')
+cat(sprintf('Accuracy: %.2f%%\nF1 Score: %.2f%%', test_accuracy, test_f1_score))
+```
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

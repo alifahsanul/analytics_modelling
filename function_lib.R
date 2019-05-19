@@ -1,4 +1,4 @@
-break_string = function(my_str, delim, len){
+f_break_string = function(my_str, delim, len){
   str_list = strsplit(my_str, delim, fixed=TRUE)
   result = paste(str_list[[1]][1], delim)
   ind_after_newline = nchar(str_list[[1]][1])
@@ -16,12 +16,12 @@ break_string = function(my_str, delim, len){
   return (result)
 }
 
-max_row_df = function(df, col){
+f_max_row_df = function(df, col){
   result = which.max(df[, c(col)])
   return (result)
 }
 
-my_ksvm = function(X, y, kernel, c_params, arg_list, verbose=TRUE){
+f_my_ksvm = function(X, y, kernel, c_params, arg_list, verbose=TRUE){
   kpar = arg_list
   model = ksvm(X, y, type='C-svc', kernel=kernel, C=c, kpar=kpar, scaled=TRUE)
   y_pred = predict(model, X)
@@ -38,7 +38,7 @@ my_ksvm = function(X, y, kernel, c_params, arg_list, verbose=TRUE){
   return (return_list)
 }
 
-print_list = function(arg_list){
+f_print_list = function(arg_list){
   names = names(arg_list)
   s = ''
   for (i in seq_along(arg_list)){
@@ -56,12 +56,12 @@ print_list = function(arg_list){
   return (s1)
 }
 
-best_model = function(df_summary, check_col){
+f_best_model = function(df_summary, check_col){
   max_row = df_summary[which.max(df_summary[[check_col]]),]
   return(max_row)
 }
 
-is_close_to = function(a, b, max_relative_error){
+f_is_close_to = function(a, b, max_relative_error){
   if (missing(max_relative_error)){
     max_relative_error=0.0001
     }
@@ -74,36 +74,18 @@ is_close_to = function(a, b, max_relative_error){
   return (res)
 }
 
-train_test_val_split = function(X, y, train_p, test_p, val_p){
-  total_p = train_p+test_p+val_p
-  stopifnot(is_close_to(total_p,1))
-  spec = c(train=train_p, test=test_p, validate=val_p)
+f_train_validation_test_split = function(df, train_p, valid_p, test_p){
+  spec = c(train = train_p, validate = valid_p, test = test_p)
   g = sample(cut(
-    seq(nrow(X)),
-    nrow(X)*cumsum(c(0,spec)),
+    seq(nrow(df)), 
+    nrow(df)*cumsum(c(0,spec)),
     labels = names(spec)
   ))
-  res = list('X'=split(X, g), 'y'=split(y, g))
-  return (res)
+  splitted_df = split(df, g)
+  result = list('train'=splitted_df$train, 'validation'=splitted_df$validate,
+                'test'=splitted_df$test)
+  return(result)
 }
-
-train_test_split = function(X, y, train_p, test_p){
-  total_p = train_p+test_p
-  stopifnot(is_close_to(total_p,1))
-  spec = c(train=train_p, test=test_p)
-  g = sample(cut(
-    seq(nrow(X)),
-    nrow(X)*cumsum(c(0,spec)),
-    labels = names(spec)
-  ))
-  res = list('X'=split(X, g), 'y'=split(y, g))
-  return (res)
-}
-
-
-
-
-
 
 
 
