@@ -8,7 +8,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
 ## Question  2.1
@@ -49,6 +49,7 @@ The files credit_card_data.txt (without headers) and credit_card_data-headers.tx
 library(kernlab)
 library(caret)
 library(ggplot2)
+library(tidyr)
 source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
 ```
 
@@ -68,7 +69,7 @@ y = data[,y_col_ind]
 X = as.matrix(X)
 y = (y)
 c_params = c(0.001, 0.01, 0.1, 1, 10, 100, 1000)
-c_params = c(0.001, 0.01, 0.1, 1, 10)
+c_params = c(0.001, 0.01, 0.1)
 model_list = c()
 conf_matrix_list = c()
 modelling_result = NULL
@@ -77,14 +78,16 @@ for (c in c_params){
   cat(sprintf('C: %.6f\n', c))
   model = ksvm(X, y, type='C-svc', kernel='vanilladot', C=c, scaled=TRUE)
   y_pred = predict(model, X)
-  conf_matr = confusionMatrix(y_pred, y)
-  accuracy = conf_matr[['overall']][['Accuracy']] * 100
-  f1_score = conf_matr[['byClass']][['F1']] * 100
+  conf_matrix = confusionMatrix(y_pred, y)
+  accuracy = conf_matrix[['overall']][['Accuracy']] * 100
+  f1_score = conf_matrix[['byClass']][['F1']] * 100
+  print(conf_matrix[["table"]])
   cat(sprintf('Accuracy: %.2f %%\tF1 Score: %.2f %%\n', accuracy, f1_score))
   model_list = c(model_list, model)
-  conf_matrix_list = c(conf_matrix_list, conf_matr)
+  conf_matrix_list = c(conf_matrix_list, conf_matrix)
   modelling_result = rbind(modelling_result, data.frame(c, accuracy, f1_score))
 }
+modelling_result$kernel = 'linear'
 ```
 
 
@@ -127,21 +130,117 @@ them in this course, but they can sometimes be useful and might provide better p
 than vanilladot.
 
 ```{r}
-c_params = c(0.001, 0.01, 0.1, 1, 10)
-model_list = c()
-conf_matrix_list = c()
-modelling_result = NULL
-for (c in c_params){
-  cat(sprintf('\n---------------------------\n'))
-  cat(sprintf('C: %.6f\n', c))
-  model = ksvm(X, y, type='C-svc', kernel='vanilladot', C=c, scaled=TRUE)
-  y_pred = predict(model, X)
-  conf_matr = confusionMatrix(y_pred, y)
-  accuracy = conf_matr[['overall']][['Accuracy']] * 100
-  f1_score = conf_matr[['byClass']][['F1']] * 100
-  cat(sprintf('Accuracy: %.2f %%\tF1 Score: %.2f %%\n', accuracy, f1_score))
-  model_list = c(model_list, model)
-  conf_matrix_list = c(conf_matrix_list, conf_matr)
-  modelling_result = rbind(modelling_result, data.frame(c, accuracy, f1_score))
-}
 ```
+
+#### Polynomial Kernel SVM
+
+```{r}
+c_params = c(0.001, 0.01, 0.1, 1)
+degree_params = c(2, 3, 4)
+poly_models = c()
+conf_matrix = c()
+poly_model_result = NULL
+for (degree in degree_params){
+  for (c in c_params){
+    my_svm_model = my_ksvm(X, y, 'polydot', c_params, arg_list=list('degree'=degree),
+                           verbose=FALSE)
+    poly_models = c(poly_models, my_svm_model$model)
+    conf_matrix = c(conf_matrix, my_svm_model$conf_matrix)
+    accuracy = my_svm_model$accuracy
+    f1_score = my_svm_model$f1_score
+    poly_model_result = rbind(poly_model_result, data.frame(c, degree,
+                                                            accuracy,
+                                                            f1_score))
+  }
+}
+poly_model_result$kernel = 'polynomial'
+```
+
+```{r fig.width=4, fig.height=2}
+cols = c('c', 'degree')
+poly_model_result[cols] = lapply(poly_model_result[cols], factor)
+ggplot(poly_model_result, aes(x=c,
+                              y=degree,
+                              fill = f1_score)) +
+  geom_tile(color='white') +
+  scale_fill_gradient(name = 'F1 Score (%)')
+```
+```{r}
+source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
+best_poly_model = best_model(poly_model_result, 'f1_score')
+print('Best Polynomial Kernel Model:')
+print(best_poly_model, row.names = FALSE)
+```
+
+#### RBF Kernel SVM
+```{r}
+sigma_params = c(0.1, 0.5, 1)
+rbf_models = c()
+conf_matrix = c()
+rbf_model_result = NULL
+for (sigma in sigma_params){
+  for (c in c_params){
+    my_svm_model = my_ksvm(X, y, 'rbfdot', c_params, arg_list=list('sigma'=sigma),
+                           verbose=FALSE)
+    rbf_models = c(rbf_models, my_svm_model$model)
+    conf_matrix = c(conf_matrix, my_svm_model$conf_matrix)
+    accuracy = my_svm_model$accuracy
+    f1_score = my_svm_model$f1_score
+    rbf_model_result = rbind(rbf_model_result, data.frame(c, sigma,
+                                                            accuracy,
+                                                            f1_score))
+  }
+}
+rbf_model_result$kernel = 'rbf'
+```
+
+```{r fig.width=4, fig.height=2}
+cols = c('c', 'sigma')
+rbf_model_result[cols] = lapply(rbf_model_result[cols], factor)
+ggplot(rbf_model_result, aes(x=c,
+                              y=sigma,
+                              fill = f1_score)) +
+  geom_tile(color='white') +
+  scale_fill_gradient(name = 'F1 Score (%)')
+```
+
+```{r}
+source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
+best_rbf_model = best_model(rbf_model_result, 'f1_score')
+print('Best RBF Kernel Model:')
+print(best_rbf_model, row.names = FALSE)
+```
+
+The best model is
+```{r}
+library(gtools)
+all_model_result = smartbind(modelling_result, poly_model_result, rbf_model_result)
+best_svm_model = best_model(all_model_result, 'f1_score')
+print('Best SVM model among 3 kernels (linear, polynomial, RBF):')
+print(best_svm_model, row.names = FALSE)
+```
+Because the best model is selected based on test data score which has same data with training data, it will overfit the data.
+
+```{r}
+
+```
+
+### Question 2.2.3
+Using the k-nearest-neighbors classification function kknn contained in the R kknn package,
+suggest a good value of k, and show how well it classifies that data points in the full data set
+
+```{r}
+library(kknn)
+source('/home/alifahsanul/Documents/analytics_modelling/function_lib.R')
+data_splitter = train_test_split(X, y, 0.7, 0.3)
+# kknn(formula = formula(train), train, test)
+```
+
+
+
+
+
+
+
+
+
