@@ -195,7 +195,7 @@ for (k in 1:length(years_col)){
                                format='%Y-%m-%d')
   summer_end_date_same_year[k] = as.Date(sprintf('2019-%s', month_day_str),
                                format='%Y-%m-%d')
-  if (any(c('2014', '2015') == year_str)){
+  if (any(c('1999', '2014', '2015') == year_str)){
     par(mar = c(5, 5, 3, 5))
     plot(x=temps$DAY, y=year_temp, type ="l", ylab = "Daily Temp (°F)",
          main = sprintf("Daily Temperature (°F) in %s", year_str), 
@@ -269,7 +269,7 @@ From graph above, we see that CUSUM value never cross the threshold. Also we don
 The result of this analysis suggests that temperature at unofficial summer end in Atlanta is not getting warmer.
 
 
-
+---
 
 
 
