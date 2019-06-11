@@ -1,0 +1,192 @@
+---
+title: 'GTx: ISYE6501x - Homework 4'
+author: 'Muh Alif Ahsanul Islam'
+date: '06/09/2019'
+output:
+  pdf_document: 
+    latex_engine: xelatex
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+options(tinytex.verbose = TRUE)
+```
+
+```{r echo=FALSE}
+library(tinytex)
+library(DAAG)
+```
+## Question  9.1
+Using the same crime data set uscrime.txt as in Question 8.2, apply Principal Component Analysis and then create a regression model using the first few principal components. Specify your new model in terms of the original variables (not the principal components), and compare its quality to that of your solution to Question 8.2. You can use the R function prcomp for PCA. (Note that to first scale the data, you can include scale. = TRUE to scale as part of the PCA function. Don’t forget that, to make a prediction for the new city, you’ll need to unscale the coefficients (i.e., do the scaling calculation in reverse)!)
+
+```{r fig.width=13, fig.height=7}
+rm(list=ls())
+crime_df = read.table('uscrime.txt', header=TRUE)
+pca = prcomp(x = crime_df[,1:15], scale=TRUE)
+screeplot(pca, type='lines', col='blue')
+```
+
+First I will choose how many principal components to use by doing 23-fold cross validation on linear regression model and choose number of principal component to use.
+
+```{r fig.height=5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+cv_res = NULL
+for (n_pca_comp in 1:ncol(pca$x)){
+  pca_df = as.data.frame(cbind(pca$x[,1:n_pca_comp], Crime=crime_df[,16]))
+  cv = cv.lm(data=pca_df, form.lm=Crime~., m=23, plotit = FALSE)
+  mean_squared_error = attr(cv, 'ms')
+  cv_res = rbind(cv_res,
+                 data.frame(n_pca_comp, mean_squared_error))
+}
+```
+
+```{r fig.width=8, fig.height=4}
+plot(x=cv_res$n_pca_comp, y=cv_res$mean_squared_error,
+     xlab='Number of PC', ylab='Mean Squared Error')
+
+```
+
+Lowest mean squared error happens on number of PC = 7. When number of PC is 12 and 15, the mean squared error is also small, but I will argue that simple model is often better (Occam's razor principle).  
+
+```{r fig.width=8, fig.height=4}
+n_pc = 7
+pca_df = as.data.frame(cbind(pca$x[,1:n_pc], Crime=crime_df[,16]))
+model = lm(Crime~., data=pca_df)
+summary(model)
+actual = crime_df$Crime
+predicted = model$fitted.values
+rss <- sum((predicted - actual) ^ 2)  ## residual sum of squares
+tss <- sum((actual - mean(actual)) ^ 2)  ## total sum of squares
+rsq <- 1 - rss/tss
+sprintf('R squared is: %.2f', rsq)
+```
+
+
+```{r}
+model_coef = model$coefficients[2:length(model$coefficients)]%*%t(pca$rotation[,1:(length(model$coefficients)-1)])
+model_coef
+```
+
+### Answer to Question 9.1
+In Homework 3, I created a regression model using only the following predictors: Ed, Ineq, M, Prob, U2, Po1. The R2 is 0.76 and adjusted R2 is 0.73. The model I got from using first seven principal components has R2 of 0.69.  
+This shows using PCA for linear regression doesn't really help increasing R2 of the model.
+
+
+\newpage
+
+## Question 10.1
+Using the same crime data set uscrime.txt as in Questions 8.2 and 9.1, find the best model you can using  
+(a) a regression tree model, and  
+(b) a random forest model.  
+In R, you can use the tree package or the rpart package, and the randomForest package. For each model, describe one or two qualitative takeaways you get from analyzing the results (i.e., don’t just stop when you have a good model, but interpret it too).  
+
+
+
+### Regression tree model
+
+```{r}
+rm(list=ls())
+library(rpart)
+library(caret)
+crime_df = read.table('uscrime.txt', header=TRUE)
+caret_control = trainControl(method='repeatedcv', number=20)
+caret_cv = train(Crime~., data=crime_df, method='rpart', 
+                 trControl=caret_control, tuneLength=15)
+caret_cv
+```
+
+One of the parameter for rpart model is cp. Any split that does not decrease the overall lack of fit by a factor of cp is not attempted. It means if cp is set to be close to 0 it will try to overfit the data. So that is the reason why I did k fold cross validation to select best cp.
+
+```{r fig.height=7, fig.width=10}
+best_cp = caret_cv[["bestTune"]][["cp"]]
+model = rpart(Crime~., data=crime_df, cp=best_cp)
+library(rpart.plot)
+rpart.plot(model, type=2, nn=TRUE)
+```
+### Answer to Question 10.1.a
+
+**Model interpretation**
+Based on tree model picture above, we can see that Po1, Pop, and NW are the important variables for predicting crime. First level of tree will ask if the Po1 is smaller than 7.7, if yes go to the left branch and else go to right branch. And same method is applied for all brances below.  
+Insde the box in the leaf, the predicted crime value and percentage of observation is shown.
+
+
+### Random Forest Model
+
+Because random forest model doesn't overfit data, we don't have to do cross validation. Out of curiosity I will try making several random forest models with different number of trees.
+
+```{r}
+rm(list=ls())
+crime_df = read.table('uscrime.txt', header=TRUE)
+library(caTools)
+set.seed(0)
+sample = sample.split(crime_df, SplitRatio=0.8)
+train = subset(crime_df, sample == TRUE)
+test  = subset(crime_df, sample == FALSE)
+library(randomForest)
+library(Metrics)
+n_tree_list = c(10, 20, 50, 100, 500, 1000, 5000, 10000, 50000)
+model_list = c()
+res_df = NULL
+for (n_tree in n_tree_list){
+  model = randomForest(Crime~., data=train, ntree=n_tree)
+  y_train_hat = model$predicted
+  y_train = train$Crime
+  y_test_hat = predict(model, test)
+  y_test = test$Crime
+  train_rmse = rmse(y_train, y_train_hat)
+  test_rmse = rmse(y_test, y_test_hat)
+  model_list = c(model_list, model)
+  res_df = rbind(res_df,
+                 data.frame(n_tree, train_rmse, test_rmse))
+}
+res_df
+```
+
+```{r fig.height=7 fig.width=8}
+plot(x=res_df$n_tree, y=res_df$test_rmse, log='x')
+```
+
+From graph above, we can conclude that very big random forest model with number of tree 50000 doesn't produce very different result with random forest with n_tree=50. We can infer that number of tree doesn't cause the model to overtfit. With this conclusion I will use random forest model with n_tree=100.
+
+```{r}
+model = randomForest(Crime~., data=train, ntree=500)
+y_train_hat = model$predicted
+y_train = train$Crime
+y_test_hat = predict(model, test)
+y_test = test$Crime
+train_rmse = rmse(y_train, y_train_hat)
+test_rmse = rmse(y_test, y_test_hat)
+
+
+```
+Visualizing random forest model is not easy.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

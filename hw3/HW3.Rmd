@@ -34,27 +34,131 @@ For small cap company I will use smaller alpha, giving less weight to current ob
 Using the 20 years of daily high temperature data for Atlanta (July through October) from Question 6.2 (file temps.txt), build and use an exponential smoothing model to help make a judgment of whether the unofficial end of summer has gotten later over the 20 years. (Part of the point of this assignment is for you to think about how you might use exponential smoothing to answer this question. Feel free to combine it with other models if you’d like to. There’s certainly more than one reasonable approach.).  
 Note: in R, you can use either HoltWinters (simpler to use) or the smooth package’s es function (harder to use, but more general). If you use es, the Holt-Winters model uses model=”AAM” in the function call (the first and second constants are used “A”dditively, and the third (seasonality) is used “M”ultiplicatively; the documentation doesn’t make that clear).
 
-
-Methodology to solve this problem:  
-We set the null and alternative hypothesis:  
-$H_0$ : Unofficial end of summer has NOT gotten later  
-$H_a$ : Unofficial end of summer has gotten later  
+Procedure:  
+  * Smooth the data by tuning alpha, beta, gamma in HoltWinters function  
+  * Because smoothed data will not contains the first year, I will add first year to the smoothed data  
+  * Using cusum to detect summer ends for each year from 1996-2015  
+  * Determine whether summer end has gotten later. To answer this, I will use linear regression with year as x and summer end as y. Positive slope means the summer end has gotten latter. We set p value of the predictor/slope must be less than 0.05.  
 
 ```{r fig.width=13, fig.height=7}
 rm(list=ls())
+temps_raw = read.table('temps.txt', header=TRUE)
+temp_ts = ts(as.vector(unlist(temps_raw[,-1])),
+             start = 1996, frequency = nrow(temps_raw))
+alpha_list = c(0.01, 0.04, 0.08, 0.2, 0.5)
+beta_list = c(0.01, 0.1, 0.3, 0.4, 0.6, 0.8)
+gamma_list = c(0.01, 0.1, 0.4, 0.5, 0.6, 0.8)
+tuning_res_df = NULL
+for (alpha in alpha_list){
+  for (beta in beta_list){
+    for (gamma in gamma_list){
+        temp_hw = HoltWinters(temp_ts, alpha=alpha, beta=beta, gamma=gamma, 
+                              seasonal='additive')
+        y_hat = temp_hw$fitted[,1]
+        y = tail(temp_ts, length(y_hat))
+        error = sqrt(mean(y_hat-y)^2)
+        tuning_res_df = rbind(tuning_res_df, 
+                              data.frame(error, alpha, beta, gamma))
+    }
+  }
+
+}
+lowest_error = min(tuning_res_df[,"error"])
+best_row = tuning_res_df[tuning_res_df$error == lowest_error,]
+best_alpha = best_row$alpha
+best_beta = best_row$beta
+best_gamma = best_row$gamma
+best_temp_hw = HoltWinters(temp_ts, alpha=best_alpha, beta=best_beta, 
+                           gamma=best_gamma, seasonal='additive')
+plot(best_temp_hw)
+temp_hw_sf = matrix(best_temp_hw$fitted[,4], nrow=nrow(temps_raw))
+temp_hw_fit = matrix(best_temp_hw$fitted[,1], nrow=nrow(temps_raw))
+```
+
+```{r fig.width=10, fig.height=5}
 temps = read.table('temps.txt', header=TRUE)
-temp_ts = ts(as.vector(unlist(temps[,-1])),
-             start = 1996, frequency = nrow(temps))
-# plot(temp_ts)
-plot(decompose(temp_ts))
-temp_hw = HoltWinters(temp_ts)
-summary(temp_hw)
-plot(temp_hw)
+temps$DAY = as.Date(temps$DAY, format='%d-%b')
+for (j in 3:ncol(temps)){
+  temps[,j] = temp_hw_fit[,j-2]
+}
+#temps now contains original raw 1996 data and smoothed 1997-2015 data
+crit_val = 7
+threshold = 20
+years_col = names(temps)[c(2:length(names(temps)))]
+years_int = rep(NA, length(years_col))
+summer_end_idx = rep(NA, length(years_col))
+summer_end_date = rep(NA, length(years_col))
+summer_end_date_same_year = rep(NA, length(years_col))
+temp_summer_end = rep(NA, length(years_col))
+class(summer_end_date) = 'Date'
+class(summer_end_date_same_year) = 'Date'
+for (k in 1:length(years_col)){
+  year_temp = as.matrix(temps[years_col[k]])
+  avg_year_temp = mean(year_temp)
+  S = rep(0, length(year_temp))
+  i_summer_end = NULL
+  i_flag = FALSE
+  for (i in 2:length(S)){
+    S[i] = max(0, S[i-1] - year_temp[i] + avg_year_temp - crit_val)
+    if (S[i] > threshold & i_flag==FALSE){
+      i_summer_end = i
+      i_flag = TRUE
+    }
+  }
+  summer_end_idx[k] = i_summer_end
+  year_str = substr(years_col[k], 2, nchar(years_col[k]))
+  years_int[k] = as.integer(year_str)
+  temp_summer_end[k] = year_temp[i_summer_end]
+  month_day_str = format(temps$DAY[i_summer_end], '%m-%d')
+  summer_end_date[k] = as.Date(sprintf('%s-%s', year_str, month_day_str),
+                               format='%Y-%m-%d')
+  summer_end_date_same_year[k] = as.Date(sprintf('2019-%s', month_day_str),
+                               format='%Y-%m-%d')
+  if (any(c('2013', '2014', '2015') == year_str)){
+    par(mar = c(5, 5, 3, 5))
+    plot(x=temps$DAY, y=year_temp, type ="l", ylab = "Daily Temp (°F)",
+         main = sprintf("Daily Temperature (°F) in %s", year_str), 
+         xlab = "Time", col = "blue")
+    par(new = TRUE)
+    plot(x=temps$DAY, y=S, type = "l", xaxt = "n", yaxt = "n",
+         ylab = "", xlab = "", col = "red", lty = 2)
+    abline(h=threshold, col='red')
+    axis(side = 4)
+    mtext("Daily Temp CUSUM (°F)", side = 4, line = 3)
+    legend("left", c("Avg Daily Temp", 
+                       sprintf("Daily Temp CUSUM, C=%.2f", crit_val),
+                     'Threshold'),
+           col = c("blue", "red", 'red'), lty = c(1, 2), cex=0.7)
+  }
+}
+```
+
+The unofficial summer end dates:
+```{r}
+summer_end_date
+```
+
+```{r fig.width=8, fig.height=4}
+plot(x=years_int, y=summer_end_date_same_year,
+     main='Unofficial End of Summer from 1996 to 2015',
+     xlab='Year', ylab='Date')
 
 ```
 
-\newpage
 
+```{r fig.width=8, fig.height=4}
+summer_end_df = data.frame(year=years_int, date=as.numeric(summer_end_date_same_year))
+model = lm(date ~ year, data = summer_end_df)
+summary(model)
+{plot(date ~ year, data=summer_end_df)
+abline(lm(date ~ year, data = summer_end_df))}
+```
+
+### Answer to Question 7.2
+From the summary of the linear regression model, we understand that the coefficient of year is 0.072 with p value 0.828. The p value is higher than our standard 0.05 so we regard there are no strong evidence for positive trend. This means we do not have evidence that summer end is getting later.
+
+
+\newpage
 
 
 
@@ -64,33 +168,61 @@ Describe a situation or problem from your job, everyday life, current events, et
 **Answer**
 
 Analytics can be used to help increase productivity of your banana farm. Using linear regresion model, we can know what type of stimulation we need to give to the plant to make it produce more bananas.
-Target variable (y): number of bananas produced
-Predictor:
-1. Temperature
-2. Humidity
-3. Fertilizer
-4. Water
+Target variable (y): number of bananas produced  
+Predictor:  
+1. Temperature  
+2. Humidity  
+3. Fertilizer  
+4. Water  
+5. Precipitation  
+
 
 ## Question 8.2
-Using crime data from http://www.statsci.org/data/general/uscrime.txt (file uscrime.txt, description at http://www.statsci.org/data/general/uscrime.html ), use regression (a useful R function is lm or glm) to predict the observed crime rate in a city with the following data:
-M = 14.0
-So = 0
-Ed = 10.0
-Po1 = 12.0
-Po2 = 15.5
-LF = 0.640
-M.F = 94.0
-Pop = 150
-NW = 1.1
-U1 = 0.120
-U2 = 3.6
-Wealth = 3200
-Ineq = 20.1
-Prob = 0.04
-Time = 39.0
+Using crime data, use regression (a useful R function is lm or glm) to predict the observed crime rate in a city with the test data below.
 Show your model (factors used and their coefficients), the software output, and the quality of fit.
 
+```{r}
+rm(list=ls())
+raw_data = read.table('uscrime.txt', header=TRUE)
+test_data = data.frame(M = 14.0,
+                      So = 0,
+                      Ed = 10.0,
+                      Po1 = 12.0,
+                      Po2 = 15.5,
+                      LF = 0.640,
+                      M.F = 94.0,
+                      Pop = 150,
+                      NW = 1.1,
+                      U1 = 0.120,
+                      U2 = 3.6,
+                      Wealth = 3200,
+                      Ineq = 20.1,
+                      Prob = 0.04,
+                      Time = 39.0)
+model = lm(Crime~., data=raw_data)
+summary(model)
+```
 
+Based on model summary above, we can see the significant predictors are (based on p value): Ed, Ineq, M, Prob, U2, Po1. The R-squared is 0.8031 and Adjusted R-squared 0.7078.  
+
+Redo modelling with only siginificant predictors, we will call this new model 'significant model' and old model 'old model'.
+```{r}
+model_significant = lm(Crime ~ Ed + Ineq + M + Prob + U2 + Po1, data=raw_data)
+summary(model_significant)
+predict(model_significant, test_data)
+```
+
+The R-squared for this model is is 0.7659 and Adjusted R-squared 0.7307. The significant model has lowest R-squared but higher adjusted R-squared.  
+[Source click here](https://blog.minitab.com/blog/adventures-in-statistics-2/multiple-regession-analysis-use-adjusted-r-squared-and-predicted-r-squared-to-include-the-correct-number-of-variables):  
+The adjusted R-squared is a modified version of R-squared that has been adjusted for the number of predictors in the model. The adjusted R-squared increases only if the new term improves the model more than would be expected by chance. It decreases when a predictor improves the model by less than expected by chance.  
+
+This means the significant model is better than old model. And we will use it to predict the test data.
+
+### Answer to Question 7.2
+The predicted crime is:
+```{r}
+predict(model_significant, test_data)
+```
 ---
 
 
