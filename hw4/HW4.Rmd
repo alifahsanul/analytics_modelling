@@ -29,16 +29,29 @@ screeplot(pca, type='lines', col='blue')
 
 First I will choose how many principal components to use by doing 23-fold cross validation on linear regression model and choose number of principal component to use.
 
-```{r fig.height=5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+The code is: (i don't show it in R because it will output many images)
+```
 cv_res = NULL
 for (n_pca_comp in 1:ncol(pca$x)){
   pca_df = as.data.frame(cbind(pca$x[,1:n_pca_comp], Crime=crime_df[,16]))
-  cv = cv.lm(data=pca_df, form.lm=Crime~., m=23, plotit = FALSE)
+  cv = cv.lm(data=pca_df, form.lm=Crime~., m=23, printit=FALSE)
   mean_squared_error = attr(cv, 'ms')
   cv_res = rbind(cv_res,
                  data.frame(n_pca_comp, mean_squared_error))
 }
 ```
+
+```{r fig.height=5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+cv_res = NULL
+for (n_pca_comp in 1:ncol(pca$x)){
+  pca_df = as.data.frame(cbind(pca$x[,1:n_pca_comp], Crime=crime_df[,16]))
+  cv = cv.lm(data=pca_df, form.lm=Crime~., m=23, printit=FALSE)
+  mean_squared_error = attr(cv, 'ms')
+  cv_res = rbind(cv_res,
+                 data.frame(n_pca_comp, mean_squared_error))
+}
+```
+
 
 ```{r fig.width=8, fig.height=4}
 plot(x=cv_res$n_pca_comp, y=cv_res$mean_squared_error,
@@ -61,6 +74,7 @@ rsq <- 1 - rss/tss
 sprintf('R squared is: %.2f', rsq)
 ```
 
+Model coefficient in terms of original predictos:
 
 ```{r}
 model_coef = model$coefficients[2:length(model$coefficients)]%*%t(pca$rotation[,1:(length(model$coefficients)-1)])
@@ -69,7 +83,7 @@ model_coef
 
 ### Answer to Question 9.1
 In Homework 3, I created a regression model using only the following predictors: Ed, Ineq, M, Prob, U2, Po1. The R2 is 0.76 and adjusted R2 is 0.73. The model I got from using first seven principal components has R2 of 0.69.  
-This shows using PCA for linear regression doesn't really help increasing R2 of the model.
+This shows using PCA for linear regression in this problem doesn't really help increasing R2 of the model.
 
 
 \newpage
@@ -84,15 +98,17 @@ In R, you can use the tree package or the rpart package, and the randomForest pa
 
 ### Regression tree model
 
-```{r}
+```{r warning=FALSE}
 rm(list=ls())
 library(rpart)
 library(caret)
 crime_df = read.table('uscrime.txt', header=TRUE)
-caret_control = trainControl(method='repeatedcv', number=20)
+set.seed(0)
+caret_control = trainControl(method='repeatedcv', number=3, repeats = 2)
 caret_cv = train(Crime~., data=crime_df, method='rpart', 
                  trControl=caret_control, tuneLength=15)
 caret_cv
+caret_cv[["bestTune"]][["cp"]]
 ```
 
 One of the parameter for rpart model is cp. Any split that does not decrease the overall lack of fit by a factor of cp is not attempted. It means if cp is set to be close to 0 it will try to overfit the data. So that is the reason why I did k fold cross validation to select best cp.
@@ -103,6 +119,8 @@ model = rpart(Crime~., data=crime_df, cp=best_cp)
 library(rpart.plot)
 rpart.plot(model, type=2, nn=TRUE)
 ```
+
+
 ### Answer to Question 10.1.a
 
 **Model interpretation**
@@ -124,7 +142,7 @@ train = subset(crime_df, sample == TRUE)
 test  = subset(crime_df, sample == FALSE)
 library(randomForest)
 library(Metrics)
-n_tree_list = c(10, 20, 50, 100, 500, 1000, 5000, 10000, 50000)
+n_tree_list = c(20, 50, 100, 500, 1000, 5000, 10000, 50000)
 model_list = c()
 res_df = NULL
 for (n_tree in n_tree_list){
@@ -140,29 +158,175 @@ for (n_tree in n_tree_list){
                  data.frame(n_tree, train_rmse, test_rmse))
 }
 res_df
+best_res = res_df[which.min(res_df$test_rmse),]
 ```
 
-```{r fig.height=7 fig.width=8}
+```{r fig.height=8, fig.width=10}
 plot(x=res_df$n_tree, y=res_df$test_rmse, log='x')
 ```
 
-From graph above, we can conclude that very big random forest model with number of tree 50000 doesn't produce very different result with random forest with n_tree=50. We can infer that number of tree doesn't cause the model to overtfit. With this conclusion I will use random forest model with n_tree=100.
+### Answer to Question 10.1.b
+
+From graph above, we can conclude that very big random forest model with number of tree 50000 doesn't produce very different result with random forest with n_tree=50. We can infer that number of tree doesn't cause the model to overtfit. With this conclusion I will use the number of tree that produce lowest test error:
 
 ```{r}
-model = randomForest(Crime~., data=train, ntree=500)
+best_res
+```
+
+```{r}
+model = randomForest(Crime~., data=train, ntree=best_res$n_tree)
 y_train_hat = model$predicted
 y_train = train$Crime
 y_test_hat = predict(model, test)
 y_test = test$Crime
 train_rmse = rmse(y_train, y_train_hat)
 test_rmse = rmse(y_test, y_test_hat)
+```
+Visualizing random forest model is not easy. So I will try to see the distribution of minimal depth in a random forest model. Attributes/predictors with low minimal depth has bigger importance for predictor than large minimal depth predictor.
 
+```{r fig.height=5, fig.width=10}
+library(randomForestExplainer)
+plot_min_depth_distribution(model)
 
 ```
-Visualizing random forest model is not easy.
+
+\newpage
+
+## Question 10.2
+Describe a situation or problem from your job, everyday life, current events, etc., for which a logistic regression model would be appropriate. List some (up to 5) predictors that you might use.
+
+**Answer**  
+Situation: I want to predict what is my chance to be admitted to Georgia Tech OMSA program.  
+By collecting data from many people who applied to OMSA program, I will use regression to predict the probability of a person accepted or not. I will need data from person who is accepted and from person who is rejected.  
+Predictors:  
+1. Undergraduate GPA  
+2. Academic speciality  
+3. TOEFL score  
+4. GRE score  
+5. Numbers of reference letter  
+
+
+## Question 10.3.1
+
+Using the GermanCredit data set, use logistic regression to find a good predictive model for whether credit applicants are good credit risks or not. Show your model (factors used and their coefficients), the software output, and the quality of fit. You can use the glm function in R. To get a logistic regression (logit) model on data where the response is either zero or one, use family=binomial(link=”logit”) in your glm function call.
+
+
+```{r warning=FALSE}
+rm(list=ls())
+credit_df = read.table('germancredit.txt', header=FALSE)
+credit_df$V21[credit_df$V21==1] = 0 # bad credit
+credit_df$V21[credit_df$V21==2] = 1 # good credit
+credit_df$V21 = as.factor(credit_df$V21)
+str(credit_df)
+library(caTools)
+library(pROC)
+set.seed(0)
+sample = sample.split(credit_df, SplitRatio=0.8)
+train = subset(credit_df, sample == TRUE)
+test = subset(credit_df, sample == FALSE)
+res_df = NULL
+i = 0
+while (i < 10){
+  if (i==0){
+    rand_col_list = colnames(credit_df)
+  }
+  else{
+    rand_col_list = c(sample(colnames(credit_df)[-21], sample(1:10, 1)), 'V21')
+  }
+  rand_col_str = paste(rand_col_list, collapse=' ')
+  train_filtered = train[rand_col_list]
+  test_filtered = test[rand_col_list]
+  model = glm(V21~., data=train_filtered, family=binomial(link='logit'))
+  train_filtered$prob = predict(model, train_filtered, type='response')
+  test_filtered$prob = predict(model, test_filtered, type='response')
+  roc_train = roc(V21 ~ prob, data=train_filtered)
+  roc_test = roc(V21 ~ prob, data=test_filtered)
+  auc_train = roc_train$auc
+  auc_test = roc_test$auc
+  res_df = rbind(res_df, 
+  data.frame(i, rand_col_str, auc_train, auc_test))
+  i = i + 1
+}
+# res_df
+best_res = res_df[which.max(res_df$auc_test), ]
+```
+
+```{r fig.height=5, fig.width=8}
+plot(res_df$i, res_df$auc_test)
+```
+
+### Answer to Question 10.3.1
+
+At first I will set the threshold to be 0.5.
+
+```{r}
+best_feature_comb = strsplit(as.vector(best_res$rand_col_str), ' ')[[1]]
+train_filtered = train[best_feature_comb]
+test_filtered = test[best_feature_comb]
+model = glm(V21~., data=train_filtered, family=binomial(link='logit'))
+train_filtered$prob = predict(model, train_filtered, type='response')
+test_filtered$prob = predict(model, test_filtered, type='response')
+train_filtered$pred[train_filtered$prob < 0.5] = 0 #bad credit
+train_filtered$pred[train_filtered$prob >= 0.5] = 1 #good credit
+test_filtered$pred[test_filtered$prob < 0.5] = 0 #bad credit
+test_filtered$pred[test_filtered$prob >= 0.5] = 1 #good credit
+roc_train = roc(V21 ~ prob, data=train_filtered)
+roc_test = roc(V21 ~ prob, data=test_filtered)
+auc_train = roc_train$auc
+auc_test = roc_test$auc
+auc_train
+auc_test
+conf_matrix = table(test_filtered$V21, test_filtered$pred)
+print('Row is actual value, column is predicted')
+conf_matrix
+tp = conf_matrix[2, 2] #good customer classified as good
+tn = conf_matrix[1, 1] #bad customer classified as bad
+fp = conf_matrix[1, 2] #bad customer classified as good
+fn = conf_matrix[2, 1] #good customer classified as bad
+```
+
+
+### Answer to Question 10.3.2
+
+Because the cost of incorrectly classifying bad customer as good is 5 times the cost of classifying good customer as bad, the we want to minimize the following value: 5 * False positive + False negative.
+
+```{r}
+library(caret)
+threshold_list = c(0.1, 0.3, 0.5, 0.7, 0.75, 0.8, 0.85, 0.9, 0.99)
+threshold_tune_res_df = NULL
+for (threshold in threshold_list){
+  train_filtered$pred[train_filtered$prob < threshold] = 0 #bad credit
+  train_filtered$pred[train_filtered$prob >= threshold] = 1 #good credit
+  test_filtered$pred[test_filtered$prob < threshold] = 0 #bad credit
+  test_filtered$pred[test_filtered$prob >= threshold] = 1 #good credit
+  train_filtered$pred = as.factor(train_filtered$pred)
+  test_filtered$pred = as.factor(test_filtered$pred)
+  conf_matrix = confusionMatrix(test_filtered$pred, test_filtered$V21)[['table']]
+  tp = conf_matrix[2, 2] #good customer classified as good
+  tn = conf_matrix[1, 1] #bad customer classified as bad
+  fp = conf_matrix[2, 1] #bad customer classified as good
+  fn = conf_matrix[1, 2] #good customer classified as bad
+  cost = 5 * fp + fn
+  threshold_tune_res_df = rbind(threshold_tune_res_df,
+                                data.frame(threshold, cost, tp, tn, fp, fn))
+}
+threshold_tune_res_df
+best_res = threshold_tune_res_df[which.min(threshold_tune_res_df$cost), ]
+```
+
+```{r fig.height=5, fig.width=8}
+plot(x=threshold_tune_res_df$threshold, y=threshold_tune_res_df$cost)
+```
 
 
 
+```{r}
+best_res
+sprintf('Best threshold is %.2f', best_res$threshold)
+```
+
+
+---
 
 
 
