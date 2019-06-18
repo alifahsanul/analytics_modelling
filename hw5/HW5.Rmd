@@ -1,0 +1,190 @@
+---
+title: 'GTx: ISYE6501x - Homework 5'
+author: "Muh Alif Ahsanul Islam"
+date: "June 18, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 11.1
+Using the crime data set uscrime.txt from Questions 8.2, 9.1, and 10.1, build a regression model using:  
+1. Stepwise regression  
+2. Lasso  
+3. Elastic net  
+For Parts 2 and 3, remember to scale the data first – otherwise, the regression coefficients will be on different scales and the constraint won’t have the desired effect. For Parts 2 and 3, use the glmnet function in R.  
+
+**Answer**  
+1. Stepwise regression
+
+```{r fig.height=8, fig.width=10}
+rm(list=ls())
+rmse = function(ypred, ytrue){
+  return (sqrt(mean((ypred - ytrue)^2)))
+}
+set.seed(0)
+library(caTools)
+crime_df = read.table('uscrime.txt', header=TRUE, stringsAsFactors=FALSE)
+sample = sample.split(crime_df, SplitRatio=0.7)
+train = subset(crime_df, sample == TRUE)
+test  = subset(crime_df, sample == FALSE)
+
+library(MASS)
+print('Backward elimination')
+model_back = step(lm(Crime~., data=train), direction='backward', trace=0)
+summary(model_back)
+
+print('Forward selection')
+model_forw = step(lm(Crime~., data=train), direction='forward', trace=0)
+summary(model_forw)
+
+print('Both direction')
+model_both = step(lm(Crime~., data=train), direction='both', trace=0)
+summary(model_both)
+```
+```{r}
+back_train_rmse = rmse(model_back[["fitted.values"]], train$Crime)
+back_test_rmse = rmse(predict(model_back, test), test$Crime)
+forw_train_rmse = sqrt(mean((model_forw[["fitted.values"]] - train$Crime)^2))
+forw_test_rmse = sqrt(mean((predict(model_forw, test) - test$Crime)^2))
+both_train_rmse = sqrt(mean((model_both[["fitted.values"]] - train$Crime)^2))
+both_test_rmse = sqrt(mean((predict(model_both, test) - test$Crime)^2))
+summary_df = data.frame(model=c('backward', 'forward', 'both'),
+                        train_error = c(back_train_rmse, forw_train_rmse, both_train_rmse),
+                        test_error = c(back_test_rmse, forw_test_rmse, both_test_rmse),
+                        stringsAsFactors=FALSE)
+summary_df
+```
+
+Best model is forward selection model because it has lowest test error. (In this exercise I am using test dataset to do validation)  
+
+2. Lasso model
+```{r}
+library(glmnet)
+set.seed(0)
+X_train = as.matrix(train[, -16])
+y_train = as.matrix(train[, 16])
+X_test = as.matrix(test[, -16])
+y_test = as.matrix(test[, 16])
+lasso_cv = cv.glmnet(x=X_train, y=y_train, type.measure='mse', alpha=1, 
+                     nfolds=8, family='gaussian', standardize=TRUE)
+plot(lasso_cv)
+```
+
+
+
+```{r}
+model_lasso = glmnet(x=X_train, y=y_train, lambda=lasso_cv$lambda.1se, 
+                     alpha=1, family='gaussian', standardize=TRUE)
+print('attributes used in this model: ')
+model_lasso$beta
+lasso_train_rmse = rmse(predict(model_lasso, X_train), y_train)
+lasso_test_rmse = rmse(predict(model_lasso, X_test), y_test)
+print('Lasso model, train RMSE')
+print(lasso_train_rmse)
+print('Lasso model, test RMSE')
+print(lasso_test_rmse)
+```
+
+3. Elastic net  
+For elastic net I will vary alpha from 0 to 1 and find the best model. Note that when alpha=1, the model is lasso and when alpha=0, the model is ridge..
+
+```{r fig.height=4}
+alpha_list = seq(0, 1.0, 0.02)
+result_df = NULL
+set.seed(0)
+for (alpha in alpha_list){
+  model = cv.glmnet(x=X_train, y=y_train, type.measure='mse', 
+                    alpha=alpha, nfolds=8, family='gaussian', standardize=TRUE)
+  train_rmse = rmse(predict(model, X_train), y_train)
+  test_rmse = rmse(predict(model, X_test), y_test)
+  result_df = rbind(result_df,
+                    data.frame(alpha, train_rmse, test_rmse))
+}
+library(reshape2)
+plot_result_df = melt(result_df, id.vars='alpha', variable.name='RMSE')
+library(ggplot2)
+theme_update(plot.title = element_text(hjust = 0.5))
+ggplot(plot_result_df, aes(alpha,value)) +
+geom_line(aes(colour = RMSE)) + geom_point(aes(colour = RMSE)) +
+ggtitle("Elastic Net Model RMSE for Various Alpha")
+```
+Graph above shows that there are no clear trend or relation between RMSE and alpha. Moreover, it is hard to say which model is the best because the RMSE values are very close to each other.  
+
+Best model is the one with lowest test RMSE.
+
+```{r}
+best_res = result_df[which.min(result_df$test_rmse),]
+best_res
+```
+
+Compare the error from Question 11.1.1, 11.1.2, 11.1.3
+
+```{r}
+temp_df = data.frame('lasso', lasso_train_rmse, lasso_test_rmse)
+names(temp_df) = names(summary_df)
+summary_df = rbind(summary_df, temp_df)
+
+temp_df = data.frame('elastic net', best_res$train_rmse, best_res$test_rmse)
+names(temp_df) = names(summary_df)
+summary_df = rbind(summary_df, temp_df)
+
+summary_df
+```
+
+
+From table above we can see that Elastic net model is the best model with test RMSE 240.
+
+\newpage
+
+## Question 12.1
+Describe a situation or problem from your job, everyday life, current events, etc., for which a design of
+experiments approach would be appropriate.  
+
+Problem: Suppose I want to manufacture and then sell cars with price as high as possible. So I try to gauge customer's willingness to pay by using market testing.  
+I have many combinations of feature of the car:  
+1. Engine: Internal combustion engine, hybrid engine  
+2. Transmission: manual, automatic  
+3. Body color: red, blue  
+Because I have 2^3=8 combinations, it will be very costly for me to create all 8 prototypes. I will use design experiment so that I can create only 4 combinations of car and still get good amount information of the market condition.
+
+## Question 12.2
+To determine the value of 10 different yes/no features to the market value of a house (large yard, solar roof, etc.), a real estate agent plans to survey 50 potential buyers, showing a fictitious house with different combinations of features. To reduce the survey size, the agent wants to show just 16 fictitious houses. Use R’s FrF2 function (in the FrF2 package) to find a fractional factorial design for this experiment: what set of features should each of the 16 fictitious houses have? Note: the output of FrF2 is “1” (include) or “-1” (don’t include) for each feature.
+
+```{r message=FALSE, warning=FALSE}
+library(FrF2)
+FrF2(nruns=16, nfactors=10, default.levels=c('no', 'yes'))
+
+```
+The table above shows 16 fictitious houses for survey. Row indicates house number, and column indicates features of the house, 'yes' means the feature is included in the house and 'no' means the feature is not included in the house.
+
+
+
+## Question 13.1
+For each of the following distributions, give an example of data that you would expect to follow this
+distribution (besides the examples already discussed in class).  
+
+Binomial distribution: probability of number of students that passed the midterm   
+Geometric distribution: probability of number of drug research needs to be done until the drug is successfully manufactured  
+Poisson distribution: probability of a shop sells n items in a day (the shop usually sells x items/day)  
+Exponential distribution: number of hits a website receives in an hour  
+Weibull distribution: lifetimes of medical and dental implants  
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
