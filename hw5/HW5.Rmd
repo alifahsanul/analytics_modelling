@@ -52,8 +52,8 @@ forw_test_rmse = sqrt(mean((predict(model_forw, test) - test$Crime)^2))
 both_train_rmse = sqrt(mean((model_both[["fitted.values"]] - train$Crime)^2))
 both_test_rmse = sqrt(mean((predict(model_both, test) - test$Crime)^2))
 summary_df = data.frame(model=c('backward', 'forward', 'both'),
-                        train_error = c(back_train_rmse, forw_train_rmse, both_train_rmse),
-                        test_error = c(back_test_rmse, forw_test_rmse, both_test_rmse),
+                        train_error=c(back_train_rmse, forw_train_rmse, both_train_rmse),
+                        test_error=c(back_test_rmse, forw_test_rmse, both_test_rmse),
                         stringsAsFactors=FALSE)
 summary_df
 ```
@@ -91,7 +91,7 @@ print(lasso_test_rmse)
 3. Elastic net  
 For elastic net I will vary alpha from 0 to 1 and find the best model. Note that when alpha=1, the model is lasso and when alpha=0, the model is ridge..
 
-```{r fig.height=4}
+```{r fig.height=4, message=FALSE, warning=FALSE}
 alpha_list = seq(0, 1.0, 0.02)
 result_df = NULL
 set.seed(0)
@@ -111,7 +111,7 @@ ggplot(plot_result_df, aes(alpha,value)) +
 geom_line(aes(colour = RMSE)) + geom_point(aes(colour = RMSE)) +
 ggtitle("Elastic Net Model RMSE for Various Alpha")
 ```
-Graph above shows that there are no clear trend or relation between RMSE and alpha. Moreover, it is hard to say which model is the best because the RMSE values are very close to each other.  
+Graph above shows that there are no clear trend or relation between RMSE and alpha. Moreover, it is hard to say which model is the best because the RMSE values are very close to each other. But we can take the alpha where train RMSE and test RMSE are not very far off because it indicates the model doesn't overtfit the data.  
 
 Best model is the one with lowest test RMSE.
 
@@ -145,16 +145,27 @@ experiments approach would be appropriate.
 
 Problem: Suppose I want to manufacture and then sell cars with price as high as possible. So I try to gauge customer's willingness to pay by using market testing.  
 I have many combinations of feature of the car:  
-1. Engine: Internal combustion engine, hybrid engine  
+1. Engine: internal combustion engine, hybrid engine  
 2. Transmission: manual, automatic  
 3. Body color: red, blue  
-Because I have 2^3=8 combinations, it will be very costly for me to create all 8 prototypes. I will use design experiment so that I can create only 4 combinations of car and still get good amount information of the market condition.
+Because I have 2^3=8 combinations, it will be very costly for me to create all 8 prototypes. I will use design experiment so that I can create only 4 combinations of car and still get good amount information of the market condition. One of possible combinations I can use to make 4 cars are shown in the following table.
+
+```{r message=FALSE, warning=FALSE}
+library(FrF2)
+set.seed(0)
+FrF2(nruns=4, nfactors=3, default.levels=c('1', '2'))
+```
+Specification of each cars:  
+Car 1: hybrid engine, automatic transmission, blue paint  
+Car 2: internal combustion engine, manual transmission, blue paint  
+Car 3: internal combustion engine, automatic transmission, red paint  
+Car 4: hybrid engine, manual transmission, red paint  
+
 
 ## Question 12.2
 To determine the value of 10 different yes/no features to the market value of a house (large yard, solar roof, etc.), a real estate agent plans to survey 50 potential buyers, showing a fictitious house with different combinations of features. To reduce the survey size, the agent wants to show just 16 fictitious houses. Use R’s FrF2 function (in the FrF2 package) to find a fractional factorial design for this experiment: what set of features should each of the 16 fictitious houses have? Note: the output of FrF2 is “1” (include) or “-1” (don’t include) for each feature.
 
 ```{r message=FALSE, warning=FALSE}
-library(FrF2)
 FrF2(nruns=16, nfactors=10, default.levels=c('no', 'yes'))
 
 ```
@@ -170,7 +181,7 @@ Binomial distribution: probability of number of students that passed the midterm
 Geometric distribution: probability of number of drug research needs to be done until the drug is successfully manufactured  
 Poisson distribution: probability of a shop sells n items in a day (the shop usually sells x items/day)  
 Exponential distribution: number of hits a website receives in an hour  
-Weibull distribution: lifetimes of medical and dental implants  
+Weibull distribution: distribution of wind speed  
 
 ---
 
