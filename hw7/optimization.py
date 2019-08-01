@@ -12,7 +12,7 @@ Diet problem
 import pulp
 import pandas as pd
 
-problem_number = 2 #1 or 2
+problem_number = 1 #1 or 2
 
 excel_df = pd.read_excel('diet.xls')
 
